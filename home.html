@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AquaMonitor - Système d'Alerte</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Animation de l'eau */
+        .water-container {
+            width: 140px;
+            height: 180px;
+            border: 4px solid #334155;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            position: relative;
+            overflow: hidden;
+            background: #f1f5f9;
+        }
+
+        .water {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
+            transition: height 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .wave {
+            position: absolute;
+            top: -15px;
+            left: 0;
+            width: 200%;
+            height: 20px;
+            background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 100 20" xmlns="http://www.w3.org/2000/svg"><path d="M0 10 Q 25 0, 50 10 T 100 10 V 20 H 0 Z" fill="%233b82f6"/></svg>');
+            background-size: 50% 100%;
+            animation: move-wave 2s linear infinite;
+        }
+
+        @keyframes move-wave {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .status-dot {
+            height: 10px;
+            width: 10px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* Animation de pulsation pour l'alerte */
+        .pulse-alert {
+            animation: pulse-red 2s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+
+    <div class="max-w-md mx-auto p-4">
+        <!-- Zone de Notifications / Alertes -->
+        <div id="notification-banner" class="hidden mb-4 p-4 rounded-xl border-2 flex items-center justify-between transition-all duration-500">
+            <div class="flex items-center gap-3">
+                <span id="notification-icon" class="text-2xl"></span>
+                <span id="notification-text" class="font-bold text-sm"></span>
+            </div>
+            <button onclick="hideNotification()" class="text-slate-400 hover:text-slate-600">✕</button>
+        </div>
+
+        <header class="text-center mb-6 pt-4">
+            <h1 class="text-2xl font-black text-slate-800 tracking-tight">AQUA<span class="text-blue-600">SMART</span></h1>
+            <p class="text-slate-500 text-xs uppercase tracking-widest">Monitoring Bluetooth</p>
+        </header>
+
+        <!-- État de Connexion -->
+        <div class="bg-white rounded-2xl shadow-sm p-4 mb-4 border border-slate-200">
+            <div class="flex items-center justify-between">
+                <div class="flex flex-col">
+                    <span id="status-text" class="text-xs font-bold text-red-500 flex items-center">
+                        <span class="status-dot bg-red-500 mr-2"></span> DÉCONNECTÉ
+                    </span>
+                    <span id="device-name" class="text-[10px] text-slate-400 uppercase">Aucun appareil</span>
+                </div>
+                <button id="btn-connect" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-xs font-bold transition-all active:scale-95">
+                    CONNECTER
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Principal -->
+        <div class="grid grid-cols-1 gap-4">
+            
+            <!-- Visualisation Réservoir -->
+            <div class="bg-white rounded-3xl shadow-sm p-6 border border-slate-200 flex flex-col items-center relative overflow-hidden">
+                <div class="absolute top-4 right-4 bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold text-slate-500">CAPTEUR LIVE</div>
+                
+                <div class="water-container mt-4">
+                    <div id="water-level" class="water" style="height: 10%;">
+                        <div class="wave"></div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 text-center">
+                    <div id="level-label" class="text-3xl font-black text-slate-300">---</div>
+                    <div class="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">Niveau actuel</div>
+                </div>
+            </div>
+
+            <!-- Indicateurs de Status -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Vanne</p>
+                    <div id="valve-status" class="text-md font-black text-slate-300 italic">INCONNU</div>
+                </div>
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase mb-1">Pompe</p>
+                    <div id="pump-status" class="text-md font-black text-slate-300 italic">INCONNU</div>
+                </div>
+            </div>
+
+            <!-- Contrôles -->
+            <div class="bg-white rounded-3xl shadow-sm p-6 border border-slate-200">
+                <h3 class="text-[10px] font-black text-slate-400 mb-4 uppercase tracking-widest">Panneau de commande</h3>
+                <div class="space-y-3">
+                    <div class="flex gap-3">
+                        <button onclick="sendCommand('VANNE_ON')" class="flex-1 bg-emerald-50 text-emerald-600 border border-emerald-200 font-bold py-3 rounded-xl hover:bg-emerald-100 transition-all active:scale-95">
+                            Ouvrir Vanne
+                        </button>
+                        <button onclick="sendCommand('VANNE_OFF')" class="flex-1 bg-rose-50 text-rose-600 border border-rose-200 font-bold py-3 rounded-xl hover:bg-rose-100 transition-all active:scale-95">
+                            Fermer Vanne
+                        </button>
+                    </div>
+                    <div class="flex gap-3">
+                        <button onclick="sendCommand('POMPE_ON')" class="flex-1 bg-sky-600 text-white font-bold py-3 rounded-xl hover:bg-sky-700 transition-all shadow-lg shadow-sky-100 active:scale-95">
+                            Démarrer Pompe
+                        </button>
+                        <button onclick="sendCommand('POMPE_OFF')" class="flex-1 bg-slate-800 text-white font-bold py-3 rounded-xl hover:bg-slate-900 transition-all active:scale-95">
+                            Arrêter
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Console Debug (Optionnel, masqué par défaut ou petit) -->
+        <details class="mt-6">
+            <summary class="text-[10px] text-slate-400 cursor-pointer text-center font-bold uppercase">Journal système</summary>
+            <div id="console" class="mt-2 p-3 bg-slate-900 rounded-lg text-[10px] text-green-500 font-mono h-24 overflow-y-auto border border-slate-800">
+                > Système prêt...
+            </div>
+        </details>
+    </div>
+
+    <script>
+        let device, server, characteristic;
+        const SERVICE_UUID = '0000ffe0-0000-1000-8000-00805f9b34fb';
+        const CHARACTERISTIC_UUID = '0000ffe1-0000-1000-8000-00805f9b34fb';
+
+        const btnConnect = document.getElementById('btn-connect');
+        const statusText = document.getElementById('status-text');
+        const consoleEl = document.getElementById('console');
+        const banner = document.getElementById('notification-banner');
+        const bannerText = document.getElementById('notification-text');
+        const bannerIcon = document.getElementById('notification-icon');
+
+        function log(msg) {
+            const time = new Date().toLocaleTimeString();
+            consoleEl.innerHTML += `<div>[${time}] ${msg}</div>`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        // Système de Notifications
+        function showNotification(type, message) {
+            banner.classList.remove('hidden', 'bg-rose-50', 'border-rose-200', 'text-rose-700', 'bg-emerald-50', 'border-emerald-200', 'text-emerald-700', 'pulse-alert');
+            
+            if (type === 'danger') {
+                banner.classList.add('bg-rose-50', 'border-rose-200', 'text-rose-700', 'pulse-alert', 'flex');
+                bannerIcon.innerText = '⚠️';
+            } else if (type === 'success') {
+                banner.classList.add('bg-emerald-50', 'border-emerald-200', 'text-emerald-700', 'flex');
+                bannerIcon.innerText = '✅';
+            }
+            
+            bannerText.innerText = message;
+        }
+
+        function hideNotification() {
+            banner.classList.add('hidden');
+        }
+
+        async function onConnect() {
+            if (Notification.permission !== "granted") {
+                 await Notification.requestPermission();
+                    }
+            try {
+                log("Recherche d'appareils...");
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [SERVICE_UUID] }],
+                    optionalServices: [SERVICE_UUID]
+                });
+
+                log("Connexion...");
+                server = await device.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', (e) => {
+                    let val = new TextDecoder().decode(e.target.value).trim();
+                    processData(val);
+                });
+                
+                statusText.innerHTML = '<span class="status-dot bg-green-500 mr-2"></span> CONNECTÉ';
+                statusText.className = "text-xs font-bold text-green-600 flex items-center";
+                document.getElementById('device-name').innerText = device.name || "Arduino Bluetooth";
+                btnConnect.innerText = "DÉCONNECTER";
+                log("Connecté avec succès.");
+            } catch (err) {
+                log("Erreur: " + err);
+            }
+        }
+        let last_notification = '';
+
+        function SendAlerte(titre,message) {
+            if (Notification.permission ==="granted" && (last_notification !== titre + message)) {
+                new Notification(titre, { body: message , icon: "https://cdn-icons-png.flaticon.com/512/3105/3105807.png"});
+                last_notification = titre + message;
+            }
+        }
+        function processData(data) {
+            // Format attendu: NIVEAU:faible,VANNE:OFF,POMPE:OFF
+            log("DATA: " + data);
+            
+            if (data.includes("NIVEAU:")) {
+                const level = data.split("NIVEAU:")[1].split(",")[0].toLowerCase();
+                updateLevelUI(level);
+                
+                // --- Logique des notifications ---
+               function processData(data) {
+                if (data.includes("NIVEAU:")) {
+                    const level = data.split("NIVEAU:")[1].split(",")[0].toLowerCase();
+                    updateLevelUI(level);
+
+                    if (level === "faible") {
+                        showNotification('danger', 'ALERTE : RÉSERVOIR VIDE !');
+                        envoyerAlerteSysteme("⚠️ Réservoir Vide", "Le niveau est critique. Pensez à ouvrir la vanne.");
+                    } 
+                    else if (level === "rempli") {
+                        showNotification('success', 'RÉSERVOIR PLEIN !');
+                        envoyerAlerteSysteme("✅ Réservoir Plein", "Le remplissage est terminé.");
+                    } 
+                    else {
+                        hideNotification();
+                        dernierEtatNotification = ""; // Réinitialise pour pouvoir ré-alerter plus tard
+                    }
+                }
+}
+            }
+
+            if (data.includes("VANNE:")) {
+                const status = data.split("VANNE:")[1].split(",")[0];
+                const el = document.getElementById('valve-status');
+                el.innerText = status === "ON" ? "OUVERTE" : "FERMÉE";
+                el.className = `text-md font-black italic ${status === "ON" ? "text-emerald-500" : "text-rose-500"}`;
+            }
+
+            if (data.includes("POMPE:")) {
+                const status = data.split("POMPE:")[1].split(",")[0];
+                const el = document.getElementById('pump-status');
+                el.innerText = status === "ON" ? "EN COURS" : "ARRÊT";
+                el.className = `text-md font-black italic ${status === "ON" ? "text-sky-500" : "text-slate-400"}`;
+            }
+        }
+
+        function updateLevelUI(level) {
+            const waterEl = document.getElementById('water-level');
+            const labelEl = document.getElementById('level-label');
+            
+            labelEl.innerText = level.toUpperCase();
+
+            if (level === 'faible') {
+                waterEl.style.height = "15%";
+                labelEl.className = "text-3xl font-black text-rose-500";
+            } else if (level === 'moyen') {
+                waterEl.style.height = "55%";
+                labelEl.className = "text-3xl font-black text-amber-500";
+            } else if (level === 'rempli') {
+                waterEl.style.height = "100%";
+                labelEl.className = "text-3xl font-black text-emerald-500";
+            }
+        }
+
+        async function sendCommand(cmd) {
+            if (!characteristic) return;
+            try {
+                await characteristic.writeValue(new TextEncoder().encode(cmd + "\n"));
+                log("CMD: " + cmd);
+            } catch (err) { log("Erreur envoi: " + err); }
+        }
+
+        btnConnect.addEventListener('click', () => {
+            if (device && device.gatt.connected) {
+                device.gatt.disconnect();
+                statusText.innerHTML = '<span class="status-dot bg-red-500 mr-2"></span> DÉCONNECTÉ';
+                statusText.className = "text-xs font-bold text-red-500 flex items-center";
+                btnConnect.innerText = "CONNECTER";
+                hideNotification();
+            } else {
+                onConnect();
+            }
+        });
+    </script>
+</body>
+</html>
